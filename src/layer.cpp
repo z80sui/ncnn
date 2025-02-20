@@ -362,9 +362,16 @@ public:
 #if NCNN_VULKAN
         if (layer_vulkan)
         {
-            int ret = layer_vulkan->create_pipeline(opt);
-            get_layer_properties();
-            return ret;
+            if (vkdev)
+            {
+                int ret = layer_vulkan->create_pipeline(opt);
+                get_layer_properties();
+                return ret;
+            }
+
+            // fallback to cpu layer
+            delete layer_vulkan;
+            layer_vulkan = 0;
         }
 #endif // NCNN_VULKAN
 
@@ -546,6 +553,13 @@ Layer* create_layer_cpu(int index)
     }
     else
 #endif // NCNN_RUNTIME_CPU && NCNN_RVV
+#if NCNN_RUNTIME_CPU && NCNN_XTHEADVECTOR
+    if (ncnn::cpu_support_riscv_xtheadvector())
+    {
+        layer_creator = layer_registry_xtheadvector[index].creator;
+    }
+    else
+#endif // NCNN_RUNTIME_CPU && NCNN_XTHEADVECTOR
     {
         layer_creator = layer_registry_arch[index].creator;
     }

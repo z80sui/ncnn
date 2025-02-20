@@ -37,6 +37,7 @@ NCNN_EXPORT VkInstance get_gpu_instance();
 
 // Destroy VkInstance object and free the memory of the associated object
 // Usually called in the destructor of the main program exit
+// The function will internally ensure that all vulkan devices are idle before proceeding with destruction.
 NCNN_EXPORT void destroy_gpu_instance();
 
 // vulkan core
@@ -206,6 +207,10 @@ public:
     const char* device_name() const;
     uint8_t* pipeline_cache_uuid() const;
 
+    // driver properties
+    uint32_t driver_id() const;
+    const char* driver_name() const;
+
     // 0 = discrete gpu
     // 1 = integrated gpu
     // 2 = virtual gpu
@@ -260,9 +265,11 @@ public:
     // fp16 and int8 feature
     bool support_fp16_packed() const;
     bool support_fp16_storage() const;
+    bool support_fp16_uniform() const;
     bool support_fp16_arithmetic() const;
     bool support_int8_packed() const;
     bool support_int8_storage() const;
+    bool support_int8_uniform() const;
     bool support_int8_arithmetic() const;
 
     // ycbcr conversion feature
@@ -270,6 +277,7 @@ public:
 
     // cooperative matrix feature
     bool support_cooperative_matrix() const;
+    bool support_cooperative_matrix_8_8_16() const;
     bool support_cooperative_matrix_16_8_8() const;
     bool support_cooperative_matrix_16_8_16() const;
     bool support_cooperative_matrix_16_16_16() const;
@@ -283,6 +291,7 @@ public:
     int support_VK_KHR_cooperative_matrix() const;
     int support_VK_KHR_dedicated_allocation() const;
     int support_VK_KHR_descriptor_update_template() const;
+    int support_VK_KHR_driver_properties() const;
     int support_VK_KHR_external_memory() const;
     int support_VK_KHR_get_memory_requirements2() const;
     int support_VK_KHR_maintenance1() const;
@@ -332,6 +341,7 @@ public:
     const GpuInfo& info;
 
     VkDevice vkdevice() const;
+    bool is_valid() const;
 
     VkShaderModule compile_shader_module(const uint32_t* spv_data, size_t spv_data_size) const;
 

@@ -12,8 +12,10 @@ git submodule update --init
   - [Raspberry Pi](#raspberry-pi)
   - [POWER](#power)
   - [Intel oneAPI](#intel-oneapi)
+  - [Cross compile: Riscv-gnu-toolchain](#cross-compile-riscv-gnu-toolchain)
   - [Verification](#verification)
 - [Build for Windows x64 using Visual Studio Community 2017](#build-for-windows-x64-using-visual-studio-community-2017)
+- [Build for Windows x64 using MinGW-w64](#build-for-windows-x64-using-mingw-w64)
 - [Build for macOS](#build-for-macos)
 - [Build for ARM Cortex-A family with cross-compiling](#build-for-arm-cortex-a-family-with-cross-compiling)
 - [Build for Hisilicon platform with cross-compiling](#build-for-hisilicon-platform-with-cross-compiling)
@@ -25,6 +27,8 @@ git submodule update --init
 - [Build for Termux on Android](#build-for-termux-on-android)
 - [Build for QNX](#build-for-qnx)
 - [Build for Nintendo 3DS Homebrew Launcher](#build-for-nintendo-3ds-homebrew-launcher)
+- [Build for HarmonyOS with cross-compiling](#build-for-harmonyos-with-cross-compiling)
+- [Build for ESP32 with cross-compiling](#build-for-esp32-with-cross-compiling)
 
 ***
 
@@ -36,33 +40,20 @@ Install required build dependencies:
 * g++
 * cmake
 * protocol buffer (protobuf) headers files and protobuf compiler
-* glslang
 * (optional) LLVM OpenMP header files # If building with Clang, and multithreaded CPU inference is desired
-* (optional) vulkan header files and loader library # If building with Vulkan, without simplevk
 * (optional) opencv  # For building examples
 
 Generally if you have Intel, AMD or Nvidia GPU from last 10 years, Vulkan can be easily used.
 
 On some systems there are no Vulkan drivers easily available at the moment (October 2020), so you might need to disable use of Vulkan on them. This applies to Raspberry Pi 3 (but there is experimental open source Vulkan driver in the works, which is not ready yet). Nvidia Tegra series devices (like Nvidia Jetson) should support Vulkan. Ensure you have most recent software installed for best experience.
 
-On Debian 10+, Ubuntu 20.04+, or Raspberry Pi OS, you can install all required dependencies using: 
+On Debian, Ubuntu, or Raspberry Pi OS, you can install all required dependencies using:
 ```shell
-sudo apt install build-essential git cmake libprotobuf-dev protobuf-compiler libomp-dev libvulkan-dev vulkan-tools libopencv-dev
+sudo apt install build-essential git cmake libprotobuf-dev protobuf-compiler libomp-dev libopencv-dev
 ```
-On earlier Debian or Ubuntu, you can install all required dependencies using: 
+On Redhat or Centos, you can install all required dependencies using:
 ```shell
-sudo apt install build-essential git cmake libprotobuf-dev protobuf-compiler libomp-dev libvulkan-dev vulkan-utils libopencv-dev
-```
-On Redhat or Centos, you can install all required dependencies using: 
-```shell
-sudo yum install build-essential git cmake libprotobuf-dev protobuf-compiler libvulkan-dev vulkan-utils libopencv-dev
-```
-To use Vulkan backend install Vulkan header files, a vulkan driver loader, GLSL to SPIR-V compiler and vulkaninfo tool. Preferably from your distribution repositories. Alternatively download and install full Vulkan SDK (about 200MB in size; it contains all header files, documentation and prebuilt loader, as well some extra tools and source code of everything) from https://vulkan.lunarg.com/sdk/home
-
-```shell
-wget https://sdk.lunarg.com/sdk/download/1.2.189.0/linux/vulkansdk-linux-x86_64-1.2.189.0.tar.gz?Human=true -O vulkansdk-linux-x86_64-1.2.189.0.tar.gz
-tar -xf vulkansdk-linux-x86_64-1.2.189.0.tar.gz
-export VULKAN_SDK=$(pwd)/1.2.189.0/x86_64
+sudo yum install build-essential git cmake libprotobuf-dev protobuf-compiler libopencv-dev
 ```
 
 To use Vulkan after building ncnn later, you will also need to have Vulkan driver for your GPU. For AMD and Intel GPUs these can be found in Mesa graphics driver, which usually is installed by default on all distros (i.e. `sudo apt install mesa-vulkan-drivers` on Debian/Ubuntu). For Nvidia GPUs the proprietary Nvidia driver must be downloaded and installed (some distros will allow easier installation in some way). After installing Vulkan driver, confirm Vulkan libraries and driver are working, by using `vulkaninfo` or `vulkaninfo | grep deviceType`, it should list GPU device type. If there are more than one GPU installed (including the case of integrated GPU and discrete GPU, commonly found in laptops), you might need to note the order of devices to use later on.
@@ -121,6 +112,29 @@ Intel oneAPI offers two kinds of compilers, the classic `icc/icpc` and the LLVM 
 
 Both of these compilers have been tested and passed the ncnn benchmark successfully. The results have been included in ncnn benchmark readme. Generally, `icx/icpx` are likely to show better performance than `icc/icpc` and the quantized models can benefit from the extensions `icx/icpx` supports.
 
+#### Cross compile: Riscv-gnu-toolchain
+Before compiling the whole project, toolchain must be installed.
+[Reference: Riscv-gnu-toolchain build guide](https://github.com/riscv-collab/riscv-gnu-toolchain/blob/master/README.md)
+```shell
+
+# configure with vector extension.
+./configure --prefix=/opt/riscv --enable-multilib --with-arch=rv64gcv
+
+# configure without vector extension.
+./configure --prefix=/opt/riscv --enable-multilib --with-arch=rv64gc
+
+# it takes quite a long time:(
+sudo make linux
+
+```
+Now you can build the project:
+```shell
+mkdir build-riscv
+cd build-riscv
+cmake -DDCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../toolchains/riscv64-unknown-linux-gnu.toolchain.cmake -DNCNN_BUILD_EXAMPLES=ON ..
+make -j$(nproc) # or `make -j2` if your cpu isn't powerful enough.
+```
+
 #### Verification
 
 Verify build by running some examples:
@@ -178,9 +192,8 @@ cmake -A x64 -DCMAKE_INSTALL_PREFIX=%cd%/install -Dprotobuf_BUILD_TESTS=OFF -Dpr
 cmake --build . --config Release -j 2
 cmake --build . --config Release --target install
 ```
-(optional) Download and install Vulkan SDK from https://vulkan.lunarg.com/sdk/home
 
-Build ncnn library (replace <protobuf-root-dir> with a proper path):
+Build ncnn library (replace `<protobuf-root-dir>` with a proper path):
 
 ```shell
 cd <ncnn-root-dir>
@@ -193,7 +206,62 @@ cmake --build . --config Release --target install
 
 Note: To speed up compilation process on multi core machines, configuring `cmake` to use `jom` or `ninja` using `-G` flag is recommended.
 
+Note: For protobuf >=22.0 (Take v25.3 for example):
+
+Build zlib:
+```shell
+git clone -b -v1.3.1 https://github.com/madler/zlib.git
+cd zlib
+mkdir build
+cd build
+cmake -A x64 -DCMAKE_INSTALL_PREFIX=%cd%/install ..
+cmake --build . --config Release -j 2
+cmake --build . --config Release --target install
+```
+
+Build protobuf library (replace `<zlib-root-dir>` with a proper path):
+```shell
+git clone -b v25.3 https://github.com/protocolbuffers/protobuf.git
+cd protobuf
+git submodule update --init --recursive
+
+mkdir protobuf_build
+cd protobuf_build
+cmake -A x64 -DCMAKE_INSTALL_PREFIX=%cd%/install -DCMAKE_CXX_STANDARD=14 -Dprotobuf_BUILD_TESTS=OFF -Dprotobuf_MSVC_STATIC_RUNTIME=OFF -DZLIB_INCLUDE_DIR=<zlib-root-dir>\build\install\include -DZLIB_LIBRARY=<zlib-root-dir>\build\install\lib\zlib.lib -DABSL_PROPAGATE_CXX_STD=ON ../cmake
+cmake --build . --config Release -j 2
+cmake --build . --config Release --target install
+```
+
+Build ncnn library (replace `<zlib-root-dir>` and `<protobuf-root-dir>` with a proper path):
+
+```shell
+cd <ncnn-root-dir>
+mkdir -p build
+cd build
+cmake -A x64 -DCMAKE_INSTALL_PREFIX=%cd%/install -DCMAKE_PREFIX_PATH=<protobuf-root-dir>/protobuf_build\install\cmake -DZLIB_INCLUDE_DIR=<zlib-root-dir>\build\install\include -DZLIB_LIBRARY=<zlib-root-dir>\build\install\lib\zlib.lib -Dabsl_DIR=<protobuf-root-dir>/protobuf_build\install\lib\cmake\absl -Dutf8_range_DIR=<protobuf-root-dir>/protobuf_build\install\lib\cmake\utf8_range -DNCNN_VULKAN=ON ..
+cmake --build . --config Release -j 2
+cmake --build . --config Release --target install
+```
+
 ***
+
+### Build for Windows x64 using MinGW-w64
+
+Download MinGW-w64 toolchain from [winlibs](https://winlibs.com/) or [w64devkit](https://github.com/skeeto/w64devkit), add `bin` folder to environment variables.
+
+Build ncnn library:
+
+```shell
+cd <ncnn-root-dir>
+mkdir build
+cd build
+cmake -DNCNN_VULKAN=ON -G "MinGW Makefiles" ..
+cmake --build . --config Release -j 4
+cmake --build . --config Release --target install
+```
+
+***
+
 ### Build for macOS
 
 We've published ncnn to [brew](https://formulae.brew.sh/formula/ncnn#default) now, you can just use following method to install ncnn if you have the Xcode Command Line Tools installed.
@@ -215,13 +283,13 @@ Download and install Vulkan SDK from <https://vulkan.lunarg.com/sdk/home>
 
 
 ```shell
-wget https://sdk.lunarg.com/sdk/download/1.2.189.0/mac/vulkansdk-macos-1.2.189.0.dmg?Human=true -O vulkansdk-macos-1.2.189.0.dmg
-hdiutil attach vulkansdk-macos-1.2.189.0.dmg
-sudo /Volumes/vulkansdk-macos-1.2.189.0/InstallVulkan.app/Contents/MacOS/InstallVulkan --root `pwd`/vulkansdk-macos-1.2.189.0 --accept-licenses --default-answer --confirm-command install
-hdiutil detach /Volumes/vulkansdk-macos-1.2.189.0
+wget https://sdk.lunarg.com/sdk/download/1.3.280.1/mac/vulkansdk-macos-1.3.280.1.dmg -O vulkansdk-macos-1.3.280.1.dmg
+hdiutil attach vulkansdk-macos-1.3.280.1.dmg
+sudo /Volumes/vulkansdk-macos-1.3.280.1/InstallVulkan.app/Contents/MacOS/InstallVulkan --root `pwd`/vulkansdk-macos-1.3.280.1 --accept-licenses --default-answer --confirm-command install
+hdiutil detach /Volumes/vulkansdk-macos-1.3.280.1
 
 # setup env
-export VULKAN_SDK=`pwd`/vulkansdk-macos-1.2.189.0/macOS
+export VULKAN_SDK=`pwd`/vulkansdk-macos-1.3.280.1/macOS
 ```
 
 ```shell
@@ -230,7 +298,7 @@ mkdir -p build
 cd build
 
 cmake -DCMAKE_TOOLCHAIN_FILE=../toolchains/ios.toolchain.cmake -DPLATFORM=MAC -DARCHS="x86_64;arm64" \
-    -DVulkan_LIBRARY=`pwd`/../vulkansdk-macos-1.2.189.0/MoltenVK/dylib/macOS/libMoltenVK.dylib \
+    -DVulkan_LIBRARY=`pwd`/../vulkansdk-macos-1.3.280.1/macOS/lib/libMoltenVK.dylib \
     -DNCNN_VULKAN=ON -DNCNN_BUILD_EXAMPLES=ON ..
 
 cmake --build . -j 4
@@ -585,11 +653,11 @@ Pick `build-XYZ/install` folder for further usage.
 
 ### Build for AllWinner D1
 
-Download c906 toolchain package from https://xuantie.t-head.cn/community/download?id=4224193099938729984
+Download c906 toolchain package from https://www.xrvm.cn/community/download?id=4382928864901402624
 
 ```shell
-tar -xf Xuantie-900-gcc-linux-5.10.4-glibc-x86_64-V2.6.1-20220906.tar.gz
-export RISCV_ROOT_PATH=/home/nihui/osd/Xuantie-900-gcc-linux-5.10.4-glibc-x86_64-V2.6.1
+tar -xf Xuantie-900-gcc-linux-6.6.0-glibc-x86_64-V3.0.1-20241120.tar.gz
+export RISCV_ROOT_PATH=/home/nihui/osd/Xuantie-900-gcc-linux-6.6.0-glibc-x86_64-V3.0.1
 ```
 
 Build ncnn with riscv-v vector and simpleocv enabled:
@@ -597,7 +665,7 @@ Build ncnn with riscv-v vector and simpleocv enabled:
 mkdir -p build-c906
 cd build-c906
 cmake -DCMAKE_TOOLCHAIN_FILE=../toolchains/c906-v226.toolchain.cmake \
-    -DCMAKE_BUILD_TYPE=release -DNCNN_OPENMP=OFF -DNCNN_THREADS=OFF -DNCNN_RUNTIME_CPU=OFF -DNCNN_RVV=ON \
+    -DCMAKE_BUILD_TYPE=release -DNCNN_OPENMP=OFF -DNCNN_THREADS=OFF -DNCNN_RUNTIME_CPU=OFF -DNCNN_RVV=OFF -DNCNN_XTHEADVECTOR=ON -DNCNN_ZFH=ON \
     -DNCNN_SIMPLEOCV=ON -DNCNN_BUILD_EXAMPLES=ON ..
 cmake --build . -j 4
 cmake --build . --target install
@@ -671,7 +739,7 @@ pkg install proot-distro
 proot-distro install ubuntu
 ```
 
-or you can see what system can be installed using `proot-distro list` 
+or you can see what system can be installed using `proot-distro list`
 
 while you install ubuntu successfully, using `proot-distro login ubuntu` to login Ubuntu.
 
@@ -730,8 +798,8 @@ Pick `build-qnx/install` folder for further usage.
 ### Build for Nintendo 3DS Homebrew Launcher
 Install DevkitPRO toolchains
 - If you are working on windows, download DevkitPro installer from [DevkitPro](https://devkitpro.org/wiki/Getting_Started).
-- If you are using Ubuntu, the official guidelines from DevkitPro might not work for you. Try using the lines below to install 
-```
+- If you are using Ubuntu, the official guidelines from DevkitPro might not work for you. Try using the lines below to install
+```shell
 sudo apt-get update
 sudo apt-get upgrade
 wget https://apt.devkitpro.org/install-devkitpro-pacman
@@ -739,14 +807,14 @@ chmod +x ./install-devkitpro-pacman
 sudo ./install-devkitpro-pacman
 ```
 
-```
+```shell
 export DEVKITPRO=/opt/devkitpro
 export DEVKITARM=/opt/devkitpro/devkitARM
 export DEVKITPPC=/opt/devkitpro/devkitPPC
 export export PATH=$/opt/devkitpro/tools/bin:$PATH
 source ~/.profile
 ```
-```
+```shell
 sudo dkp-pacman -Sy
 sudo dkp-pacman -Syu
 sudo dkp-pacman -S 3ds-dev
@@ -774,7 +842,7 @@ Copy the toolchain files from [3DS-cmake](https://github.com/Xtansia/3ds-cmake)(
 
 ```
 Build with:
-```
+```shell
 cd ncnn
 mkdir build && cd build
 cmake -DCMAKE_TOOLCHAIN_FILE=../toolchains/DevkitArm3DS.cmake .. -DNCNN_SIMPLEOCV=ON -DNCNN_OPENMP=OFF -DNCNN_VFPV4=OFF ..
@@ -783,3 +851,52 @@ make install
 ```
 Modify the Makefile in Homebrew example to link and use NCNN in your 3DS Homebrew app.
 
+***
+
+### Build for HarmonyOS with cross-compiling
+Download and install HarmonyOS SDK. The sdk installation directory is `/opt/ohos-sdk/linux`
+
+```shell
+cd <ncnn-root-dir>
+mkdir -p build
+cd build
+
+export HM_SDK=/opt/ohos-sdk/linux
+
+# Choose HarmonyOS sdk cmake toolchain file.
+# If you want to enable vulkan, set -DNCNN_VULKAN=ON
+# The HarmonyOS sdk does not support openmp, use ncnn simpleomp instead.
+# Cross-compiling with CMake must use the one provided by the HarmonyOS SDK; otherwise, it won't recognize parameters like OHOS_PLATFORM, leading to compilation errors.
+${HM_SDK}/native/build-tools/cmake/bin/cmake -DOHOS_STL=c++_static -DOHOS_ARCH=arm64-v8a -DOHOS_PLATFORM=OHOS -DCMAKE_TOOLCHAIN_FILE=${HM_SDK}/native/build/cmake/ohos.toolchain.cmake -DNCNN_VULKAN=ON -DNCNN_SIMPLEOMP=ON ..
+
+make -j$(nproc)
+make install
+```
+
+***
+
+### Build for ESP32 with cross-compiling
+Download esp-idf sdk
+```shell
+git clone https://github.com/espressif/esp-idf
+cd esp-idf
+git submodule update --init --recursive
+```
+Install esp-idf sdk and configure the environment
+```shell
+sudo sh install.sh
+source export.sh
+```
+Note: python>=3.8, cmake>=3.24.0
+
+Build ncnn library:
+```shell
+mkdir build-esp32
+cd build-esp32
+cmake -DCMAKE_TOOLCHAIN_FILE=../toolchains/esp32.toolchain.cmake -DCMAKE_BUILD_TYPE=Release ..
+make -j 4
+make install
+```
+Note: Make sure to compile in esp-idf environment.
+
+The compiled ncnn library and headers can be put to the esp32 project to test.
